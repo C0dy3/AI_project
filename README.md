@@ -11,19 +11,20 @@ This project implements a reinforcement learning agent using Q-learning to play 
 To run this project, you'll need to have Python 3.12+ installed along with the following dependencies:
 
 1. Clone this repository:
+ ```bash
 git clone https://github.com/your-username/AI_project.git
 cd AI_project
-```bash
-
-
+```
 2.  Set up a virtual environment and activate it:
+```bash
 python -m venv .venv
-```bash
-
+```
 3. Install the required dependencies:
+```bash
 pip install -r requirements.txt
-```bash
-
+```
 4. Run main file
-python main.py
 ```bash
+python main.py
+```
+
