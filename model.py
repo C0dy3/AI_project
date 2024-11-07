@@ -1,5 +1,7 @@
-﻿from keras import Sequential
-from keras.src.layers import Flatten, Dense
+﻿import tensorflow as tf
+from tensorflow.python.keras import Sequential
+from tensorflow.python.keras.layers import Dense, Flatten
+
 
 
 def create_model():
