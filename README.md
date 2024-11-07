@@ -12,12 +12,13 @@ To run this project, you'll need to have Python 3.12+ installed along with the f
 
 1. Clone this repository:
  ```bash
-git clone https://github.com/your-username/AI_project.git
+git clone https://github.com/C0dy3/AI_project.git
 cd AI_project
 ```
 2.  Set up a virtual environment and activate it:
 ```bash
 python -m venv .venv
+.\vent\Scirpts\activate
 ```
 3. Install the required dependencies:
 ```bash
