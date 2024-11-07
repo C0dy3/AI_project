@@ -8,7 +8,8 @@ This project implements a reinforcement learning agent using Q-learning to play 
 
 ## Installation
 
-To run this project, you'll need to have Python 3.12+ installed along with the following dependencies:
+To run this project, you'll need to have Python 3.11 installed along with the following dependencies:
+<b>This experimental branch is running older versions of libraries because of some bugs in newer version, python 3.11 is required</b>
 
 1. Clone this repository:
  ```bash
