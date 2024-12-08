@@ -5,25 +5,11 @@ import matplotlib.pyplot as plt
 
 import tensorflow as tf
 from tensorflow.python.keras.optimizer_v2.adam import Adam
-from tensorflow.python.keras.models import Model, load_model
+from tensorflow.python.keras.models import Model
 
 from ReplayBuffer import ReplayBuffer
 
-def save_model(model, epoch, project_path="./"):
-    model_save_path = os.path.join(project_path, 'models', f'model_checkpoint_epoch_{epoch}.h5')
-    if not os.path.exists(os.path.join(project_path, 'models')):
-        os.makedirs(os.path.join(project_path, 'models'))
-    model.save(model_save_path)
-    print(f'Model saved at {model_save_path}')
-
-def load_trained_model(project_path="./", epoch=10):
-    model_path = os.path.join(project_path, 'models', f'model_checkpoint_epoch_{epoch}.h5')
-    model = load_model(model_path)
-    print(f'Model loaded from {model_path}')
-    return model
-
-
-def train_model(env, model, episodes=500, gamma=0.99, epsilon=1.0, epsilon_decay=0.995, min_epsilon=0.01, batch_size=32, project_path="./"):
+def train_model(env, model, episodes=500, gamma=0.99, epsilon=1.0, epsilon_decay=0.995, min_epsilon=0.05, batch_size=32):
     replay_buffer = ReplayBuffer(max_size=1000)
     total_reward_list = []
 
@@ -31,45 +17,69 @@ def train_model(env, model, episodes=500, gamma=0.99, epsilon=1.0, epsilon_decay
         observation, info = env.reset()
         done = False
         total_reward = 0
+        previous_position = observation[:2]  # Uchováme počáteční pozici (nebo jiný relevantní parametr)
 
         while not done:
             env.render()
 
+            # Epsilon-greedy strategie
             if np.random.random() < epsilon:
                 action = env.action_space.sample()
-                action = np.argmax(action)
+                action = np.argmax(action)  # Zaměříme se na diskretizovanou akci
             else:
                 action_values = model.predict(np.array([observation]))[0]
                 action = np.argmax(action_values)
 
-            # Discretize action (map continuous action space to discrete)
+            # Diskretizace akce (mapování z 0, 1, 2 na konkrétní akce)
             discrete_to_continuous_map = {
-                0: [-1.0, 0.0, 0.0],
-                1: [0.0, 1.0, 0.0],
-                2: [1.0, 0.0, 0.0],
+                0: [-1.0, 0.5, 0.0],  # Ostřejší zatáčka doleva
+                1: [0.0, 1.0, 0.0],   # Plný plyn vpřed
+                2: [1.0, 0.5, 0.0],   # Ostřejší zatáčka doprava
             }
 
             action = discrete_to_continuous_map.get(action, [0.0, 0.0, 0.0])
 
+            # Nový stav a odměna
             new_obs, reward, terminated, truncated, info = env.step(action)
             new_obs = preprocess_observation(new_obs)
 
+            # Předpokládáme, že observation a new_obs obsahují 2D nebo 3D souřadnice pozice (např. [x, y])
+            previous_position = observation[:2]  # Uložíme počáteční pozici
+
+            # Kód v smyčce, kde získáme novou pozici
+            current_position = new_obs[:2]  # Nová pozice auta (např. x, y)
+
+            # Výpočet vzdálenosti mezi předchozí a novou pozicí
+            distance = np.linalg.norm(current_position - previous_position)
+
+            # Pokud se pozice příliš nezměnila (auto se nepohlo)
+            if distance < 0.5:
+                reward -= 0.5  # Penalizace za stagnaci, auto se nepohlo
+                print("Auto se nepohlo. Penalizace.")
+            else:
+                print("Auto se pohlo.")
+
+            # Dlouhodobější odměny (můžete přidat i pokrok na trati, pokud je to možné)
+            reward += 0.05  # Malá pozitivní odměna za pokrok
+
+            # Přidání do Replay Bufferu
             replay_buffer.add((observation, action, reward, new_obs, terminated or truncated))
             observation = new_obs
             total_reward += reward
 
+            # Trénování modelu, pokud máme dostatek dat v Replay Bufferu
             if replay_buffer.size() > batch_size:
                 batch = replay_buffer.sample(batch_size)
                 update_model(model, batch, gamma)
 
+            # Snižování epsilon pro postupné přecházení od explorace k exploataci
             epsilon = max(epsilon * epsilon_decay, min_epsilon)
 
             done = terminated or truncated
 
         total_reward_list.append(total_reward)
         print(f'Episode {episode + 1} Reward: {total_reward}')
-        save_model(model, episode + 1, project_path)
-        print("Episode finished. Resetting environment...")
+
         observation, info = env.reset()
 
     env.close()
