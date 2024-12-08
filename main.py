@@ -5,6 +5,7 @@ import gym
 from model import create_model
 from train import train_model
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 def main():
     env = gym.make('CarRacing-v2', render_mode="human")
