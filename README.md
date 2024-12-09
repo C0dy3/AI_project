@@ -8,7 +8,7 @@ This project implements a reinforcement learning agent using Q-learning to play 
 
 ## Installation
 
-<li>To run this project, you'll need to have Python 3.11 installed along with the following dependencies:</li>
+<li>To run this project, you'll need to have Python 3.12 installed along with the following dependencies:</li>
 <li>You need to have swing installed on you system path to compile some C++ code</li>
 <li>Alongsie with C++/C compiler to compile pygame assets</li>
 
@@ -22,11 +22,11 @@ cd AI_project
 2.  Set up a virtual environment and activate it:
 ```bash
 python -m venv .venv
-.\vent\Scirpts\activate
+.\venv\Scirpts\activate
 ```
 3. Install the required dependencies:
 ```bash
-pip install -r requirements.txt
+python pip install -r requirements.txt
 ```
 4. Run main file
 ```bash
