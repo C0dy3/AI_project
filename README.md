@@ -5,6 +5,8 @@ This project implements a reinforcement learning agent using Q-learning to play 
 ## Table of Contents
 
 - [Installation](#installation)
+- [Requirements](#requirements)
+- [Commands](#commands)
 
 ## Installation
 
@@ -12,11 +14,19 @@ This project implements a reinforcement learning agent using Q-learning to play 
 <li>You need to have swing installed on you system path to compile some C++ code</li>
 <li>Alongsie with C++/C compiler to compile pygame assets</li>
 
+## Requirements
+<li>Tensorflow 2.18.0</li>
+<li>Keras 3.7.0 <b>!! Need to by installed with tensorflow !!</b></li>
+<li>Gym 0.26.1</li>
+<li>Cuda 12.6</li>
+<li>Swig</li>
+<li><b>All can be found in requirements.txt file</b></li>
+
 ## Commands
 
-1. Clone this repository:
+1. Clone this repository experimental branch:
  ```bash
-git clone https://github.com/C0dy3/AI_project.git
+git clone --branch experimental https://github.com/C0dy3/AI_project.git
 cd AI_project
 ```
 2.  Set up a virtual environment and activate it:
