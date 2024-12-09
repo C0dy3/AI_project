@@ -1,75 +1,73 @@
-﻿import os
-import numpy as np
+﻿import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-
 import tensorflow as tf
-from numpy.f2py.rules import options
-from tensorflow.python.keras.optimizer_v2.adam import Adam
-from tensorflow.python.keras.models import Model
+import keras
+from keras.src.ops import dtype
 
 from ReplayBuffer import ReplayBuffer
 
+
 def check_out_of_track(observation):
-
-    grass_color = np.array([102, 229, 102])
+    grass_color = np.array([110, 110, 100])
     threshold = 10
-
     grass_pixels = np.all(np.abs(observation - grass_color) < threshold, axis=-1)
     grass_ratio = np.mean(grass_pixels)
-
-    return grass_ratio > 0.05
+    return grass_ratio > 0.1
 
 
 def train_model(env, model, episodes=50, gamma=0.99, epsilon=1.0, epsilon_decay=0.995, min_epsilon=0.05,
-                batch_size=32):
+                batch_size=96):
     replay_buffer = ReplayBuffer(max_size=1000)
     total_reward_list = []
 
     for episode in range(episodes):
-        observation, info = env.reset(options={"randomize": True})
+        observation, info = env.reset(options={"randomize": False})
         done = False
         total_reward = 0
 
         while not done:
             env.render()
-
+            action = [0.0, 0.0, 0.0]
+            mapped_action = [0.0, 0.0, 0.0]
             if np.random.random() < epsilon:
-                action = env.action_space.sample()
-                action = np.argmax(action)
+                action = env.action_space.sample()  # Náhodný výběr
+                print("Random action:", action)
             else:
-                action_values = model.predict(np.array([observation]))[0]
-                action = np.argmax(action_values)
+                if np.random.random() < epsilon:
+                    action_idx = np.random.randint(0, 10)  # Vyber náhodnou akci
+                else:
+                    action_values = model.predict(tf.convert_to_tensor(np.array([observation]), dtype=tf.float32))
+                    action_idx = np.argmax(action_values)
 
-            discrete_to_continuous_map = {
-                0: [-1.0, 0.5, 0.0],
-                1: [0.0, 1.0, 0.0],
-                2: [1.0, 0.5, 0.0],
-            }
+                # Mapujeme index na příslušné řízení
+                action_map = {
+                    0: [-1.0, 0.0, 0.0],  # Otáčení vlevo
+                    1: [1.0, 0.0, 0.0],  # Otáčení doprava
+                    2: [0.0, 1.0, 0.0],  # Plynový pedál (maximální plyn)
+                    3: [0.0, 0.0, 1.0],  # Maximální brždění
+                    4: [-0.5, 0.5, 0.0],  # Mírné otáčení doleva s plynem
+                    5: [0.5, 0.5, 0.0],  # Mírné otáčení doprava s plynem
+                    6: [-1.0, 0.5, 0.0],  # Plné otáčení doleva s plynem
+                    7: [1.0, 0.5, 0.0],  # Plné otáčení doprava s plynem
+                    8: [0.0, 0.0, 0.0],  # Žádný pohyb
+                    9: [0.0, 0.0, 0.5],  # Lehké brždění
+                }
 
-            action = discrete_to_continuous_map.get(action, [0.0, 0.0, 0.0])
+                mapped_action = action_map.get(action_idx, [0.0, 0.0, 0.0])
+                print("Mapped action:", mapped_action)
 
-            new_obs, reward, terminated, truncated, info = env.step(action)
+
+            new_obs, reward, terminated, truncated, info = env.step(mapped_action)
+            track_visited_tile_count = info.get('track_tile_visited_count', 1)
+            print("info", info)
+            print("Tiles visited:", track_visited_tile_count)
             new_obs = preprocess_observation(new_obs)
-
-            current_position = new_obs[:2]
-
-            distance = np.linalg.norm(current_position - observation[:2])
-
-            if distance < 0.1:
-                reward -= 10
-                print("Auto se nepohlo. Penalizace.")
-
-            # Kontrola, zda AI opustila trať
-            if check_out_of_track(new_obs):
-                reward -= 10  # Penalizace za opuštění dráhy
-                print("AI opustila trať. Penalizace.")
-                done = True
-                new_obs, info = env.reset()
+            print("Current reward:", reward)
 
             replay_buffer.add((observation, action, reward, new_obs, terminated or truncated))
             observation = new_obs
             total_reward += reward
+            print("Total reward: ", total_reward)
 
             if replay_buffer.size() > batch_size:
                 batch = replay_buffer.sample(batch_size)
@@ -80,8 +78,10 @@ def train_model(env, model, episodes=50, gamma=0.99, epsilon=1.0, epsilon_decay=
             done = done or terminated or truncated
 
         total_reward_list.append(total_reward)
-        print(f'Episode {episode + 1} Reward: {total_reward}')
+        print("Total reward: ",total_reward)
+        print(f'Episode {episode + 1} completed. Total reward: {total_reward}')
 
+    # Ukončit simulaci
     env.close()
     return total_reward_list
 
@@ -89,46 +89,30 @@ def train_model(env, model, episodes=50, gamma=0.99, epsilon=1.0, epsilon_decay=
 def update_model(model, batch, gamma):
     states, actions, rewards, new_states, dones = zip(*batch)
 
+    # Convert to NumPy array pro TensorFlow
     states = np.array(states, dtype=np.float32)
-    actions = np.array(actions, dtype=np.int32)
+    actions = np.array(actions).astype(int)
     rewards = np.array(rewards, dtype=np.float32)
     dones = np.array(dones, dtype=np.float32)
     new_states = np.array(new_states, dtype=np.float32)
 
-    q_values_next = model.predict(new_states)
-    q_values_target = rewards + gamma * np.max(q_values_next, axis=1) * (1 - dones)
-
-    states = tf.convert_to_tensor(states, dtype=tf.float32)
-
     with tf.GradientTape() as tape:
-        tape.watch(states)
-
         q_values = model(states)
-        q_values = tf.reduce_sum(q_values, axis=-1)
-        q_values_target = tf.tile(tf.reshape(q_values_target, [-1, 1]), [1, q_values.shape[0]])
-        q_values_selected = tf.reduce_sum(tf.one_hot(actions, depth=q_values.shape[0]) * q_values, axis=1)
-        loss = tf.reduce_mean(tf.square(q_values_target - q_values_selected))
+        q_values_next = model(new_states)
+        target_q = rewards + gamma * np.max(q_values_next, axis=1) * (1 - dones)
+        actions = np.array(actions).reshape(-1)
+        action_mask = tf.one_hot(actions, depth=5)
+        q_values = tf.reduce_sum(q_values, axis=1)  # Izolujeme Q pro vybrané akce
+        loss = keras.losses.mean_squared_error(target_q, q_values)
 
+    # Gradiente a optimalizace
     grads = tape.gradient(loss, model.trainable_variables)
-
-    if grads is None or all(grad is None for grad in grads):
-        print("Warning: No gradients provided!")
-        return loss
-
-    optimizer = Adam(learning_rate=0.001)
+    optimizer = keras.optimizers.Adam(learning_rate=0.001)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-
     return loss
 
-def plot_rewards(total_rewards):
-    plt.plot(total_rewards)
-    plt.xlabel('Episodes')
-    plt.ylabel('Rewards')
-    plt.title('Rewards vs Episodes')
-    plt.show()
 
 def preprocess_observation(observation, target_size=(96, 96)):
-    observation = np.array(observation)
-    resized_observation = cv2.resize(observation, target_size)
-    normalized_observation = resized_observation / 255.0
-    return normalized_observation
+    observation = cv2.resize(observation, target_size)
+    normalized_observation = observation / 255.0
+    return tf.convert_to_tensor(normalized_observation, dtype=tf.float32)
